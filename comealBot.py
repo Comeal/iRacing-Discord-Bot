@@ -2,8 +2,16 @@ import discord
 from discord import app_commands
 import json
 import boto3
+import os
+from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 from iRacingCommands import race_results, team_stats
+
+
+envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
+aws_region = os.getenv('AWS_REGION')
+aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 
 
 def get_discord_secret():
