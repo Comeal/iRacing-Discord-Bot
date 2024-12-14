@@ -2,9 +2,17 @@ from iracingdataapi.client import irDataClient
 import json
 from datetime import datetime, timedelta
 import boto3
+import os
+from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 import pandas as pd
 import re
+
+
+envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
+aws_region = os.getenv('AWS_REGION')
+aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 
 
 def get_iracing_secret():
