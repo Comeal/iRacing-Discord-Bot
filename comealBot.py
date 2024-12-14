@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 from iRacingCommands import race_results, team_stats
 
-
+# Only used whilst running locally
 envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
 aws_region = os.getenv('AWS_REGION')
 aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
@@ -43,7 +43,7 @@ def get_discord_secret():
     secret = secret_dict.get("Discord_SECRET")
     return secret
 
-MY_GUILD = discord.Object(id=823227580583772200)
+GUILDS = [823227580583772200, 822462437626347540]
 discord_secret = get_discord_secret()
 
 class MyClient(discord.Client):
@@ -54,8 +54,10 @@ class MyClient(discord.Client):
 
     async def setup_hook(self):
         # This copies the global commands over to your guild.
-        self.tree.copy_global_to(guild=MY_GUILD)
-        await self.tree.sync(guild=MY_GUILD)
+        for guild_id in GUILDS:
+            guild = discord.Object(id=guild_id)
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
 
 
 intents = discord.Intents.default()
@@ -108,7 +110,7 @@ async def teamstats(interaction: discord.Interaction):
             return
         # Create an embed
         embed = discord.Embed(
-            title="SOP Team Members",
+            title="SOP Esports Racing Team Members",
             color=discord.Color.pink()
         )
         # Add fields for each driver
