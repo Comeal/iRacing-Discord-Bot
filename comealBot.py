@@ -5,7 +5,7 @@ import boto3
 import os
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError
-from iRacingCommands import race_results, team_stats, special_events_calendar
+from iRacingCommands import race_results, team_stats, special_events_calendar, get_all_session_id
 
 # Only used whilst running locally
 envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
@@ -69,23 +69,33 @@ async def on_ready():
     print(f'We have logged in as {client.user}')
 
 
-@client.tree.command(name='gtp_race_results', description='Show the latest IMSA race GTP results')
-async def raceresults(interaction: discord.Interaction):
+@client.tree.command(name='imsa_gtp_race_results', description='Show the latest IMSA race GTP results for a given session ID')
+async def raceresults(interaction: discord.Interaction, session_id: str):
     try:
+        # Ask user to input the session ID
         await interaction.response.defer()
-        df = race_results()
-        if df.empty:
-            await interaction.followup.send("No race results available.")
+
+        # Check if the session ID is a valid integer or not
+        if not session_id.isdigit():
+            await interaction.followup.send("Session ID Should be a Number")
             return
+
+        # Call the race_results function with the user input
+        df = race_results(session_id)
+
+        if df is None or df.empty:
+            await interaction.followup.send("No Race Result Available.")
+            return
+
         # Create an embed
         embed = discord.Embed(
-            title="Race Results",
-            description="Here are the latest race results:",
+            title="Race Result",
+            description="Here are the GTP results the IMSA race session:",
             color=discord.Color.blue()
         )
         # Add fields for each driver
         for index, row in df.iterrows():
-            result = int(row['Result']) + 1
+            result = row['Result']
             driver_info = (
                 f"**Driver**: {row['Driver']}\n"
                 f"**Class**: {row['Class']}\n"
@@ -108,6 +118,7 @@ async def teamstats(interaction: discord.Interaction):
         if df.empty:
             await interaction.followup.send("Error retrieving team stats.")
             return
+
         # Create an embed
         embed = discord.Embed(
             title="SOP Esports Racing Team Members",
@@ -142,6 +153,7 @@ async def special_events(interaction: discord.Interaction):
         if df.empty:
             await interaction.followup.send("Error retrieving dates.")
             return
+
         # Create an embed
         embed = discord.Embed(
             title="Upcoming 2025 iRacing Special Events",

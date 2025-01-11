@@ -98,7 +98,7 @@ def get_previous_tuesday():
     return last_tuesday_start.strftime("%Y-%m-%dT%H:%MZ")
 
 
-# Generate df that shows this week's imsa races
+# Generate df that lists this week's IMSA race sessions
 def this_week_imsa_races():
     latest_week = get_previous_tuesday()
     try:
@@ -106,62 +106,75 @@ def this_week_imsa_races():
         stats = idc.result_search_series(event_types=[1], start_range_begin=latest_week)
 
         # Flatten all nested dictionaries
-        df = pd.json_normalize(stats, sep="_")
+        imsa_race_ids = pd.json_normalize(stats, sep="_")
         imsa_races = []
 
-        # Extract imsa only race sessions
-        for _, race in df.iterrows():
+        # Extract IMSA only race session information
+        for _, race in imsa_race_ids.iterrows():
             if re.search("IMSA", race["series_name"]) and race["event_type_name"] == "Race":
                 imsa_races.append(race)
             else:
                 continue
 
-        last_10_ids = imsa_races[-10:]
-
-        df = pd.DataFrame(last_10_ids)
-        df.drop(columns=["session_id", "end_time", "license_category_id", "license_category", "num_drivers", "num_cautions",
+        # Convert to a dataframe and drop columns
+        imsa_race_ids = pd.DataFrame(imsa_races)
+        imsa_race_ids.drop(columns=["session_id", "end_time", "license_category_id", "license_category", "num_drivers", "num_cautions",
                          "num_caution_laps", "num_lead_changes", "event_laps_complete", "driver_changes", "winner_group_id",
                          "winner_ai", "official_session", "season_id", "season_year", "season_quarter", "event_type",
                          "series_id", "series_short_name", "race_week_num", "event_strength_of_field", "event_average_lap",
                          "event_best_lap_time", "track_config_name", "track_track_id"], inplace=True)
 
         # Rename columns
-        df.rename(
+        imsa_race_ids.rename(
             columns={"subsession_id": "ID", "winner_name": "Winner", "event_type_name": "Event", "series_name": "Series",
                      "track_track_name": "Track", "start_time": "Time"}, inplace=True)
 
-        return df
+        return imsa_race_ids
     except:
         print("No IMSA Races This Week")
 
-# Create function to grab all session IDs from this week's races function
+# Create function to grab all session IDs from this week's IMSA races function
 def get_all_session_id():
     weekly_races = this_week_imsa_races()
     session_ids = weekly_races["ID"].tolist()
 
     return session_ids
 
+# Create function to take a user input session ID (that must be valid from the IMSA list) and output the race results
+def race_results(session_id: str):
+    try:
+        session_id = session_id
+        # Check if the session ID is valid from the get_all_session_id function
+        if session_id in get_all_session_id():
+            session = session_id
+            return session
+        else:
+            print("Session ID not a Valid IMSA Session")
 
-def race_results():
-    session_ids = get_all_session_id()
-    race_result = idc.result(subsession_id=session_ids[0], include_licenses=False)
+        # Convert the session to an integer and raise and error if it is not
+        try:
+            session = int(session_id)
+        except TypeError as e:
+            print(f"Session ID Must be a Number: {str(e)}")
+            return None
 
-    # Find results dict nested within sub dictionaries and append to a new list
-    imsa_race_results = []
-    imsa_sessions = []
-    session_id = race_result.get("subsession_id")
+        race_result = idc.result(subsession_id=session, include_licenses=False)
 
-    if "session_results" in race_result:
-        session_result = race_result["session_results"]
-        for sessions in session_result:
-            imsa_sessions.append(sessions)
-            if sessions.get("simsession_name") == 'RACE' and "results" in sessions:
-                results = sessions["results"]
-                for result in results:
-                    imsa_race_results.append(result)
+        # Find results dict nested within sub dictionaries and append to a new list
+        imsa_race_results = []
+        imsa_sessions = []
 
-    results = pd.json_normalize(imsa_race_results, sep="_")
-    results.drop(columns=['cust_id', 'aggregate_champ_points', 'ai', 'average_lap', 'best_lap_num', 'best_lap_time',
+        if "session_results" in race_result:
+            session_result = race_result["session_results"]
+            for sessions in session_result:
+                imsa_sessions.append(sessions)
+                if sessions.get("simsession_name") == 'RACE' and "results" in sessions:
+                    results = sessions["results"]
+                    for result in results:
+                        imsa_race_results.append(result)
+
+        results = pd.json_normalize(imsa_race_results, sep="_")
+        results.drop(columns=['cust_id', 'aggregate_champ_points', 'ai', 'average_lap', 'best_lap_num', 'best_lap_time',
                      'best_nlaps_num', 'best_nlaps_time', 'best_qual_lap_at', 'best_qual_lap_num', 'best_qual_lap_time',
                      'car_class_id', 'car_class_short_name', 'car_id', 'champ_points', 'class_interval', 'club_id',
                      'club_name', 'club_points', 'club_shortname', 'country_code', 'division', 'division_name',
@@ -178,17 +191,22 @@ def race_results():
                      'livery_car_number', 'livery_wheel_color', 'livery_rim_type', 'suit_pattern', 'suit_color1',
                      'suit_color2', 'suit_color3'], inplace=True)
 
-    # Filter out non GTP cars
-    results_df = results.loc[results['car_class_name'] == 'GTP']
+        # Filter out non GTP cars
+        results_df = results.loc[results['car_class_name'] == 'GTP']
 
-    # Rename columns
-    results_df.rename(columns={"subsession_id": "ID", "display_name": "Driver", "car_class_name": "Class", "car_name": "Car",
+        # Rename columns
+        results_df.rename(columns={"display_name": "Driver", "car_class_name": "Class", "car_name": "Car",
                        "finish_position": "Result"}, inplace=True)
 
-    # Add session id to dataframe
-    results_df["ID"] = session_id
+        # Add +1 onto race result position for correct position
+        results_df['Result'] = results_df['Result'].astype(int) +1
 
-    return results_df
+        return results_df
+
+    except:
+        print("Invalid Session ID")
+        return None
+
 
 def team_stats():
     sop_team_id = 272234
