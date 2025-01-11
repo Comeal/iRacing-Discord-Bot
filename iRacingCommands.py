@@ -160,8 +160,8 @@ def race_results():
                 for result in results:
                     imsa_race_results.append(result)
 
-    df = pd.json_normalize(imsa_race_results, sep="_")
-    df.drop(columns=['cust_id', 'aggregate_champ_points', 'ai', 'average_lap', 'best_lap_num', 'best_lap_time',
+    results = pd.json_normalize(imsa_race_results, sep="_")
+    results.drop(columns=['cust_id', 'aggregate_champ_points', 'ai', 'average_lap', 'best_lap_num', 'best_lap_time',
                      'best_nlaps_num', 'best_nlaps_time', 'best_qual_lap_at', 'best_qual_lap_num', 'best_qual_lap_time',
                      'car_class_id', 'car_class_short_name', 'car_id', 'champ_points', 'class_interval', 'club_id',
                      'club_name', 'club_points', 'club_shortname', 'country_code', 'division', 'division_name',
@@ -179,16 +179,16 @@ def race_results():
                      'suit_color2', 'suit_color3'], inplace=True)
 
     # Filter out non GTP cars
-    df = df.loc[df['car_class_name'] == 'GTP']
+    results_df = results.loc[results['car_class_name'] == 'GTP']
 
     # Rename columns
-    df.rename(columns={"subsession_id": "ID", "display_name": "Driver", "car_class_name": "Class", "car_name": "Car",
+    results_df.rename(columns={"subsession_id": "ID", "display_name": "Driver", "car_class_name": "Class", "car_name": "Car",
                        "finish_position": "Result"}, inplace=True)
 
     # Add session id to dataframe
-    df["ID"] = session_id
+    results_df["ID"] = session_id
 
-    return df
+    return results_df
 
 def team_stats():
     sop_team_id = 272234
@@ -231,3 +231,39 @@ def team_stats():
     team_roster = team_roster.sort_values(by='iRating', ascending=False)
 
     return team_roster
+
+
+def special_events_calendar():
+    # Manually entered information for all iRacing special events in 2025
+    events_calendar = [
+        {"event": "Roar Before the 24", "date": "January 10-11", "cars": "LMP3"", " "GT4"", " "Touring Cars", "end_date": 20250112},
+        {"event": "Daytona 24", "date": "January 17-19", "cars": "GTP/HY"", " "LMP2"", " "GT3", "end_date": 20250120},
+        {"event": "Daytona 500", "date": "February 12-17", "cars": "NASCAR Cup Series", "end_date": 20250218},
+        {"event": "Bathurst 12 Hour", "date": "February 21-23", "cars": "GT3", "end_date": 20250224},
+        {"event": "Sebring 12 Hour", "date": "March 21-23", "cars": "GTP/HY"", " "LMP2"", " "GT3", "end_date": 20250324},
+        {"event": "Fixed Setup Indy 500", "date": "May 6-12", "cars": "Dallara IR-18", "end_date": 20250513},
+        {"event": "Open Setup Indy 500", "date": "May 13-19", "cars": "Dallara IR-18", "end_date": 20250520},
+        {"event": "Coke 600", "date": "May 21-26", "cars": "NASCAR Cup Series", "end_date": 20250527},
+        {"event": "Nürburgring 24 Hour", "date": "June 6-8", "cars": "GT3"", " "Porsche Cup"", " "GT4"", " "TCR"", " "BMW M2", "end_date": 20250609},
+        {"event": "Watkins Glen 6 Hour", "date": "June 27-28", "cars": "GTP/HY"", " "LMP2"", " "GT3", "end_date": 20250629},
+        {"event": "Spa 24 Hours", "date": "July 11-13", "cars": "GT3", "end_date": 20250714},
+        {"event": "Brickyard 400", "date": "July 23-28", "cars": "NASCAR Cup Series", "end_date": 20250729},
+        {"event": "Indy 6 Hour", "date": "September 5-6", "cars": "GTP/HY"", " "LMP2"", " "GT3", "end_date": 20250907},
+        {"event": "Bristol Night Race", "date": "September 10-15", "cars": "NASCAR Cup Series", "end_date": 20250916},
+        {"event": "Bathurst 1000", "date": "September 26-27", "cars": "Supercars", "end_date": 20250928},
+        {"event": "Petit Le Mans", "date": "October 3-5", "cars": "GTP/HY"", " "LMP2"", " "GT3", "end_date": 20251006},
+        {"event": "Suzuka 1000km", "date": "November 14-16", "cars": "GT3", "end_date": 20251117}]
+
+    calendar = pd.json_normalize(events_calendar, sep="_")
+    # Convert the end_date column to datetime format
+    calendar['end_date'] = pd.to_datetime(calendar['end_date'], format='%Y%m%d')
+    # Rename columns
+    calendar.rename(columns={"event": "Event", "date": "Date", "cars": "Cars"}, inplace=True)
+
+    # Get today's date to compare against the end date
+    today = datetime.now()
+    # Filter out rows where the end date is after today
+    calendar = calendar[calendar["end_date"] > today]
+
+    return calendar
+

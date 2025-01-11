@@ -5,7 +5,7 @@ import boto3
 import os
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError
-from iRacingCommands import race_results, team_stats
+from iRacingCommands import race_results, team_stats, special_events_calendar
 
 # Only used whilst running locally
 envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
@@ -116,7 +116,7 @@ async def teamstats(interaction: discord.Interaction):
         # Add fields for each driver
         for index, row in df.iterrows():
             driver = row['Driver']
-            # Format the driver info as requested
+            # Format the driver info
             driver_info = f"{row['iRating']} iRating, {row['License Class']}, {row['Safety Rating']}"
 
             # Add the driver information as a field
@@ -133,5 +133,33 @@ async def teamstats(interaction: discord.Interaction):
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message(f'Hi, {interaction.user.mention}')
 
+
+@client.tree.command(name='special_events_calendar', description='Show the Upcoming iRacing Special Events for 2025')
+async def special_events(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+        df = special_events_calendar()
+        if df.empty:
+            await interaction.followup.send("Error retrieving dates.")
+            return
+        # Create an embed
+        embed = discord.Embed(
+            title="Upcoming 2025 iRacing Special Events",
+            color=discord.Color.red()
+        )
+        # Add fields for each event
+        for index, row in df.iterrows():
+            events = row['Event']
+            # Format the event info
+            event_info = f"{row['Date']}, Cars: {row['Cars']}"
+
+            # Add the event information as a field
+            embed.add_field(name=events, value=event_info, inline=False)
+
+        # Send the embed
+        await interaction.followup.send(embed=embed)
+
+    except Exception as e:
+        await interaction.followup.send(f"Error: {e}")
 
 client.run(discord_secret)
