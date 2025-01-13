@@ -1,1 +1,3 @@
-README for Comeal's Discord Bot for Useful iRacing Commands
+README
+
+Comeal's Discord Bot for Useful iRacing Commands
