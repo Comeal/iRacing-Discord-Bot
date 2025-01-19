@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 import pandas as pd
 import re
 
+from numpy.matlib import empty
 
 envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
 aws_region = os.getenv('AWS_REGION')
@@ -84,7 +85,7 @@ iracing_user = get_iracing_user()
 idc = irDataClient(username=iracing_user, password=iracing_pass)
 
 
-# Calculate time from last tuesday, for current weeks races
+# Function to get the time from last tuesday, used for current weeks races
 def get_previous_tuesday():
     today = datetime.now()
     # Weekday is an integer where Monday is 0 and Sunday is 6.
@@ -98,7 +99,7 @@ def get_previous_tuesday():
     return last_tuesday_start.strftime("%Y-%m-%dT%H:%MZ")
 
 
-# Generate df that lists this week's IMSA race sessions
+# Function that lists weeks IMSA race sessions
 def this_week_imsa_races():
     latest_week = get_previous_tuesday()
     try:
@@ -133,14 +134,15 @@ def this_week_imsa_races():
     except:
         print("No IMSA Races This Week")
 
-# Create function to grab all session IDs from this week's IMSA races function
+# Function to grab all session IDs from this week's IMSA races function
 def get_all_session_id():
     weekly_races = this_week_imsa_races()
     session_ids = weekly_races["ID"].tolist()
 
     return session_ids
 
-# Create function to take a user input session ID (that must be valid from the IMSA list) and output the race results
+
+# Function to take a user input session ID (that must be valid from the IMSA list) and output the race results
 def race_results(session_id: str):
     try:
         session_id = session_id
@@ -208,6 +210,7 @@ def race_results(session_id: str):
         return None
 
 
+# Function to get the irating and safety rating for the given team
 def team_stats():
     sop_team_id = 272234
     sop_roster = []
@@ -228,11 +231,11 @@ def team_stats():
     # Normalize and filter licenses for Sports Car
     licenses_df = pd.json_normalize(sop_licenses, sep="_")
 
-    # Add an identifier to maintain alignment with the original roster
+    # Add an identifier to maintain alignment with the original dataframe
     licenses_df = licenses_df.reset_index().rename(columns={"index": "license_index"})
     df = df.reset_index().rename(columns={"index": "roster_index"})
 
-    # Merge the filtered license information back to the main roster dataframe
+    # Merge the filtered license information back to the main dataframe
     team_roster = pd.merge(df, licenses_df, left_on="roster_index", right_index=True, how="inner")
 
     # Tidy up the final DataFrame
@@ -251,6 +254,7 @@ def team_stats():
     return team_roster
 
 
+# Function to hold a list of special events
 def special_events_calendar():
     # Manually entered information for all iRacing special events in 2025
     events_calendar = [
@@ -272,16 +276,55 @@ def special_events_calendar():
         {"event": "Petit Le Mans", "date": "October 3-5", "cars": "GTP/HY"", " "LMP2"", " "GT3", "end_date": 20251006},
         {"event": "Suzuka 1000km", "date": "November 14-16", "cars": "GT3", "end_date": 20251117}]
 
-    calendar = pd.json_normalize(events_calendar, sep="_")
+    calendar_df = pd.json_normalize(events_calendar, sep="_")
     # Convert the end_date column to datetime format
-    calendar['end_date'] = pd.to_datetime(calendar['end_date'], format='%Y%m%d')
+    calendar_df['end_date'] = pd.to_datetime(calendar_df['end_date'], format='%Y%m%d')
     # Rename columns
-    calendar.rename(columns={"event": "Event", "date": "Date", "cars": "Cars"}, inplace=True)
+    calendar_df.rename(columns={"event": "Event", "date": "Date", "cars": "Cars"}, inplace=True)
 
     # Get today's date to compare against the end date
     today = datetime.now()
     # Filter out rows where the end date is after today
-    calendar = calendar[calendar["end_date"] > today]
+    calendar = calendar_df[calendar_df["end_date"] > today]
 
-    return calendar
+    return calendar_df
 
+
+# Function that gets all the sportscar drivers irating and calculates their percentile
+def irating_percentile(driver_name: str):
+    try:
+        # Find all the drivers who compete in the sports car series
+        sportscar_drivers = idc.driver_list(category_id=5)
+
+        # Add the drivers into a dataframe
+        drivers_df = pd.DataFrame(sportscar_drivers)
+        # Drop the columns that aren't required and rows where the irating is =1 (rookie drivers)
+        drivers_df.drop(columns=["custid", "location", "ttrating", "tot_clubpoints", "champpoints", "avg_inc",
+                                 "club_name", "wins", "laps", "lapslead", "avg_points", "avg_start_pos",
+                                 "avg_finish_pos", "top25pcnt", "class", "starts"],inplace=True)
+        drivers_df = drivers_df.loc[drivers_df['irating'] != '-1']
+
+        # Add drivers rank to the list (+1 from first index)
+        drivers_df['rank'] = drivers_df.reset_index().index + 1
+
+        # Get user input for a valid driver to check their irating percentile
+        driver_name = driver_name
+
+        # Check if the driver is valid from drivers_df
+        if driver_name not in drivers_df['driver'].values:
+            print("Driver Name not Found")
+            return None
+
+        # Convert the irating column to an integer and calculate the percentile in a new column as top %
+        drivers_df['irating'] = drivers_df['irating'].astype(int)
+        drivers_df['percentile'] = (1 - drivers_df['irating'].rank(pct=True)) * 100
+        drivers_df['percentile'] = drivers_df['percentile'].round(2)
+
+        # Filter to only the driver that has been requested
+        driver_percentile = drivers_df.loc[drivers_df['driver'] == driver_name]
+
+        return driver_percentile
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
