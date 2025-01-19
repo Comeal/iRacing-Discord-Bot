@@ -1,7 +1,7 @@
 # README
 
 # Comeal's Discord Bot for Useful iRacing Commands
-## Uses jasondilworth5 wrapper for the iRacing API: [jasondilworth5](https://github.com/jasondilworth56/iracingdataapi/blob/main/src/iracingdataapi/client.py)
+## Uses jasondilworth5 wrapper for the iRacing API: [[jasondilworth5](https://github.com/jasondilworth56/iracingdataapi/blob/main/src/iracingdataapi/client.py)](https://github.com/jasondilworth56/iracingdataapi/tree/main)
 
 ### Contains the following useful functions for use within the discord bot:
 
