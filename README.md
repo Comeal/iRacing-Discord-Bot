@@ -8,9 +8,8 @@
 ### get_previous_tuesday():
 Function to get the time from last tuesday, used for current weeks races
 
-### this_week_imsa_races()::
+### this_week_imsa_races():
 Function that lists weeks IMSA race sessions
-def 
 
 ### get_all_session_id():
 Function to grab all session IDs from this week's IMSA races function
