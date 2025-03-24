@@ -8,7 +8,6 @@ from botocore.exceptions import ClientError
 import pandas as pd
 import re
 
-from numpy.matlib import empty
 
 envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
 aws_region = os.getenv('AWS_REGION')
@@ -78,10 +77,9 @@ def get_iracing_user():
     return user
 
 
+# Secrets stored on AWS secrets manager
 iracing_pass = get_iracing_secret()
 iracing_user = get_iracing_user()
-
-
 idc = irDataClient(username=iracing_user, password=iracing_pass)
 
 
@@ -118,21 +116,25 @@ def this_week_imsa_races():
                 continue
 
         # Convert to a dataframe and drop columns
-        imsa_race_ids = pd.DataFrame(imsa_races)
-        imsa_race_ids.drop(columns=["session_id", "end_time", "license_category_id", "license_category", "num_drivers", "num_cautions",
+        imsa_race_ids_df = pd.DataFrame(imsa_races)
+        imsa_race_ids_df.drop(columns=["session_id", "end_time", "license_category_id", "license_category", "num_drivers", "num_cautions",
                          "num_caution_laps", "num_lead_changes", "event_laps_complete", "driver_changes", "winner_group_id",
                          "winner_ai", "official_session", "season_id", "season_year", "season_quarter", "event_type",
                          "series_id", "series_short_name", "race_week_num", "event_strength_of_field", "event_average_lap",
                          "event_best_lap_time", "track_config_name", "track_track_id"], inplace=True)
 
         # Rename columns
-        imsa_race_ids.rename(
+        imsa_race_ids_df.rename(
             columns={"subsession_id": "ID", "winner_name": "Winner", "event_type_name": "Event", "series_name": "Series",
                      "track_track_name": "Track", "start_time": "Time"}, inplace=True)
 
-        return imsa_race_ids
-    except:
-        print("No IMSA Races This Week")
+        return imsa_race_ids_df
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return None
+
 
 # Function to grab all session IDs from this week's IMSA races function
 def get_all_session_id():
@@ -146,12 +148,6 @@ def get_all_session_id():
 def race_results(session_id: str):
     try:
         session_id = session_id
-        # Check if the session ID is valid from the get_all_session_id function
-        if session_id in get_all_session_id():
-            session = session_id
-            return session
-        else:
-            print("Session ID not a Valid IMSA Session")
 
         # Convert the session to an integer and raise and error if it is not
         try:
@@ -194,7 +190,7 @@ def race_results(session_id: str):
                      'suit_color2', 'suit_color3'], inplace=True)
 
         # Filter out non GTP cars
-        results_df = results.loc[results['car_class_name'] == 'GTP']
+        results_df = results.loc[results['car_class_name'] == 'GTP'].copy()
 
         # Rename columns
         results_df.rename(columns={"display_name": "Driver", "car_class_name": "Class", "car_name": "Car",
@@ -205,53 +201,60 @@ def race_results(session_id: str):
 
         return results_df
 
-    except:
-        print("Invalid Session ID")
-        return None
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return None
 
 
 # Function to get the irating and safety rating for the given team
-def team_stats():
-    sop_team_id = 272234
-    sop_roster = []
-    sop_licenses = []
-    sop_team_stats = idc.team(team_id=sop_team_id, include_licenses=True)
-    if "roster" in sop_team_stats:
-        sop_members = sop_team_stats["roster"]
-        for member in sop_members:
-            sop_roster.append(member)
+def team_stats(team_id: str):
+    # Get user input for a valid team to check the team stats
+    team_id = int(team_id)
+    roster = []
+    licenses = []
+    roster_stats = idc.team(team_id=team_id, include_licenses=True)
+    if "roster" in roster_stats:
+        members = roster_stats["roster"]
+        for member in members:
+            roster.append(member)
             if "licenses" in member:
                 for license_entry in member["licenses"]:
                     if license_entry.get("category") == "sports_car":
-                        sop_licenses.append(license_entry)
+                        licenses.append(license_entry)
 
     # Normalize the roster data
-    df = pd.json_normalize(sop_roster, sep="_")
+    team_stats_df = pd.json_normalize(roster, sep="_")
+    # Access the team name from the dict
+    team_name_dict_key = "team_name"
+    team_name = roster_stats[team_name_dict_key]
 
     # Normalize and filter licenses for Sports Car
-    licenses_df = pd.json_normalize(sop_licenses, sep="_")
+    licenses_df = pd.json_normalize(licenses, sep="_")
 
     # Add an identifier to maintain alignment with the original dataframe
     licenses_df = licenses_df.reset_index().rename(columns={"index": "license_index"})
-    df = df.reset_index().rename(columns={"index": "roster_index"})
+    team_stats_df = team_stats_df.reset_index().rename(columns={"index": "roster_index"})
 
     # Merge the filtered license information back to the main dataframe
-    team_roster = pd.merge(df, licenses_df, left_on="roster_index", right_index=True, how="inner")
+    roster_df = pd.merge(team_stats_df, licenses_df, left_on="roster_index", right_index=True, how="inner")
 
     # Tidy up the final DataFrame
-    team_roster = team_roster.loc[team_roster["category"] == "sports_car"]
-    team_roster.drop(columns=["cust_id", "owner", "helmet_face_type", "helmet_helmet_type", "helmet_color3",
+    roster_df = roster_df.loc[roster_df["category"] == "sports_car"]
+    roster_df.drop(columns=["cust_id", "owner", "helmet_face_type", "helmet_helmet_type", "helmet_color3",
                                   "helmet_color2", "helmet_color1", "helmet_pattern", "mpr_num_tts", "seq",
                                   "pro_promotable", "tt_rating", "mpr_num_races", "color", "roster_index", "group_id",
                                   "category_id", "category", "category_name", "cpi", "license_level", "license_index", "licenses",
                                   "admin"],
                          inplace=True)
-    team_roster.rename(columns={"display_name": "Driver", "safety_rating": "Safety Rating",
+    roster_df.rename(columns={"display_name": "Driver", "safety_rating": "Safety Rating",
                                     "irating": "iRating", "group_name": "License Class"}, inplace=True)
 
-    team_roster = team_roster.sort_values(by='iRating', ascending=False)
+    roster_df = roster_df.sort_values(by='iRating', ascending=False)
 
-    return team_roster
+    return roster_df, team_name
+
 
 
 # Function to hold a list of special events
@@ -285,7 +288,7 @@ def special_events_calendar():
     # Get today's date to compare against the end date
     today = datetime.now()
     # Filter out rows where the end date is after today
-    calendar = calendar_df[calendar_df["end_date"] > today]
+    calendar_df = calendar_df[calendar_df["end_date"] > today]
 
     return calendar_df
 
@@ -327,4 +330,5 @@ def irating_percentile(driver_name: str):
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        return None
+
+    return None

@@ -20,14 +20,14 @@ def get_discord_secret():
     region_name = "eu-north-1"
 
     # Create a Secrets Manager client
-    session = boto3.session.Session()
-    client = session.client(
-        service_name='secretsmanager',
-        region_name=region_name
+    secrets_session = boto3.session.Session()
+    secrets_client = secrets_session.client(
+        service_name = 'secretsmanager',
+        region_name = region_name
     )
 
     try:
-        get_secret_value_response = client.get_secret_value(
+        get_secret_value_response = secrets_client.get_secret_value(
             SecretId=secret_name
         )
     except ClientError as e:
@@ -60,8 +60,8 @@ class MyClient(discord.Client):
             await self.tree.sync(guild=guild)
 
 
-intents = discord.Intents.default()
-client = MyClient(intents=intents)
+client_intents = discord.Intents.default()
+client = MyClient(intents=client_intents)
 
 
 @client.event
@@ -90,9 +90,9 @@ async def raceresults(interaction: discord.Interaction, session_id: str):
 
         # Create an embed
         embed = discord.Embed(
-            title="Race Result",
-            description="Here are the GTP results the IMSA race session:",
-            color=discord.Color.blue()
+            title = "Race Result",
+            description = "Here are the GTP results the IMSA race session:",
+            color = discord.Color.blue()
         )
         # Add fields for each driver
         for index, row in race_results_df.iterrows():
@@ -112,22 +112,30 @@ async def raceresults(interaction: discord.Interaction, session_id: str):
 
 
 # Discord command that displays the team irating and safety rating for the SOP team
-@client.tree.command(name='sop_team_stats', description='Show the stats of SOP team members.')
-async def teamstats(interaction: discord.Interaction):
+@client.tree.command(name="team_stats", description="Show the stats of your team's members.")
+async def teamstats(interaction: discord.Interaction, team_id: str):
     try:
+        # Ask user to input the team ID
         await interaction.response.defer()
-        df = team_stats()
-        if df.empty:
-            await interaction.followup.send("Error retrieving team stats.")
+
+        # Check if the team ID is a valid integer or not
+        if not team_id.isdigit():
+            await interaction.followup.send("Team ID Should be a Number")
+            return
+
+        # Call the team stats function with the user input to get the team stats and team name
+        roster_df, team_name = team_stats(team_id)
+        if roster_df is None or roster_df.empty:
+            await interaction.followup.send("Team Not Found or Incorrect ID")
             return
 
         # Create an embed
         embed = discord.Embed(
-            title="SOP Esports Racing Team Members",
-            color=discord.Color.pink()
+            title = f"{team_name}",
+            color = discord.Color.pink()
         )
         # Add fields for each driver
-        for index, row in df.iterrows():
+        for index, row in roster_df.iterrows():
             driver = row['Driver']
             # Format the driver info
             driver_info = f"{row['iRating']} iRating, {row['License Class']}, {row['Safety Rating']}"
@@ -160,8 +168,8 @@ async def special_events(interaction: discord.Interaction):
 
         # Create an embed
         embed = discord.Embed(
-            title="Upcoming 2025 iRacing Special Events.",
-            color=discord.Color.red()
+            title = "Upcoming 2025 iRacing Special Events.",
+            color = discord.Color.red()
         )
         # Add fields for each event
         for index, row in calendar_df.iterrows():
@@ -197,14 +205,14 @@ async def iratingpercentile(interaction: discord.Interaction, driver_name: str):
 
         # Create an embed
         embed = discord.Embed(
-            title="iRating Percentile",
-            description="The percentile is calculated from the sportscar irating of drivers who have completed at least one sportscar race.",
-            color=discord.Color.green()
+            title = "iRating Percentile",
+            description = "The percentile is calculated from the sportscar irating of drivers who have completed at least one sportscar race.",
+            color = discord.Color.green()
         )
 
         embed.add_field(
-            name=driver,
-            value=(
+            name = driver,
+            value = (
                 f" This driver is in the top {percentile:.2f}% of all sportscar drivers. They are ranked {rank}."
             )
         )
