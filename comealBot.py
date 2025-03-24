@@ -200,7 +200,7 @@ async def iratingpercentile(interaction: discord.Interaction, driver_name: str):
         # Call the race_results function with the user input
         drivers_df = irating_percentile(driver_name)
         if drivers_df is None or drivers_df.empty:
-            await interaction.followup.send("Driver Name Not Found or Incorrect. Please Ensure the name is spelt exactly as per iRacing, with no spaces at the beginning.")
+            await interaction.followup.send("Driver name not found or incorrect. Please ensure the name is spelt exactly as per iRacing, with no spaces at the beginning.")
 
             return
 
