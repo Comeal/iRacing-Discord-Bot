@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 import pandas as pd
 import re
+import requests
 
 
 envs = load_dotenv(dotenv_path='C:/Users/matth/PycharmProjects/ComealiRacingDiscordBot/.venv/envs.env')
@@ -131,7 +132,7 @@ def this_week_imsa_races():
         return imsa_race_ids_df
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred: {e}.")
 
     return None
 
@@ -153,7 +154,7 @@ def race_results(session_id: str):
         try:
             session = int(session_id)
         except TypeError as e:
-            print(f"Session ID Must be a Number: {str(e)}")
+            print(f"Session ID Must be a Number: {str(e)}.")
             return None
 
         race_result = idc.result(subsession_id=session, include_licenses=False)
@@ -203,58 +204,78 @@ def race_results(session_id: str):
 
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred: {e}.")
 
     return None
 
 
 # Function to get the irating and safety rating for the given team
 def team_stats(team_id: str):
-    # Get user input for a valid team to check the team stats
-    team_id = int(team_id)
-    roster = []
-    licenses = []
-    roster_stats = idc.team(team_id=team_id, include_licenses=True)
-    if "roster" in roster_stats:
-        members = roster_stats["roster"]
-        for member in members:
-            roster.append(member)
-            if "licenses" in member:
-                for license_entry in member["licenses"]:
-                    if license_entry.get("category") == "sports_car":
-                        licenses.append(license_entry)
+    try:
+        # Get user input for a valid team to check the team stats
+        team_id = int(team_id)
+        roster = []
+        licenses = []
 
-    # Normalize the roster data
-    team_stats_df = pd.json_normalize(roster, sep="_")
-    # Access the team name from the dict
-    team_name_dict_key = "team_name"
-    team_name = roster_stats[team_name_dict_key]
+        try:
+            roster_stats = idc.team(team_id=team_id, include_licenses=True)
 
-    # Normalize and filter licenses for Sports Car
-    licenses_df = pd.json_normalize(licenses, sep="_")
+            # If the response is a 404 error, handle it specifically, likely team ID not within iRacing database
+            if isinstance(roster_stats, requests.models.Response) and roster_stats.status_code == 404:
+                print(f"Team ID: {team_id} is not a Valid Team ID or Number.")
+                return None
 
-    # Add an identifier to maintain alignment with the original dataframe
-    licenses_df = licenses_df.reset_index().rename(columns={"index": "license_index"})
-    team_stats_df = team_stats_df.reset_index().rename(columns={"index": "roster_index"})
+        except requests.exceptions.RequestException as e:
+            print(f"Error: Could not reach the server or invalid response. {e}.")
+            return None
+        except RuntimeError:
+            # Handle the error if the team ID not within iRacing database
+            print(f"Team ID: {team_id} is not a Valid Team ID or Number.")
+            return None
 
-    # Merge the filtered license information back to the main dataframe
-    roster_df = pd.merge(team_stats_df, licenses_df, left_on="roster_index", right_index=True, how="inner")
+        if "roster" in roster_stats:
+            members = roster_stats["roster"]
+            for member in members:
+                roster.append(member)
+                if "licenses" in member:
+                    for license_entry in member["licenses"]:
+                        if license_entry.get("category") == "sports_car":
+                            licenses.append(license_entry)
 
-    # Tidy up the final DataFrame
-    roster_df = roster_df.loc[roster_df["category"] == "sports_car"]
-    roster_df.drop(columns=["cust_id", "owner", "helmet_face_type", "helmet_helmet_type", "helmet_color3",
-                                  "helmet_color2", "helmet_color1", "helmet_pattern", "mpr_num_tts", "seq",
-                                  "pro_promotable", "tt_rating", "mpr_num_races", "color", "roster_index", "group_id",
-                                  "category_id", "category", "category_name", "cpi", "license_level", "license_index", "licenses",
-                                  "admin"],
-                         inplace=True)
-    roster_df.rename(columns={"display_name": "Driver", "safety_rating": "Safety Rating",
-                                    "irating": "iRating", "group_name": "License Class"}, inplace=True)
+        # Normalize the roster data
+        team_stats_df = pd.json_normalize(roster, sep="_")
+        # Access the team name from the dict
+        team_name_dict_key = "team_name"
+        team_name = roster_stats[team_name_dict_key]
 
-    roster_df = roster_df.sort_values(by='iRating', ascending=False)
+        # Normalize and filter licenses for Sports Car
+        licenses_df = pd.json_normalize(licenses, sep="_")
 
-    return roster_df, team_name
+        # Add an identifier to maintain alignment with the original dataframe
+        licenses_df = licenses_df.reset_index().rename(columns={"index": "license_index"})
+        team_stats_df = team_stats_df.reset_index().rename(columns={"index": "roster_index"})
 
+        # Merge the filtered license information back to the main dataframe
+        roster_df = pd.merge(team_stats_df, licenses_df, left_on="roster_index", right_index=True, how="inner")
+
+        # Tidy up the final DataFrame
+        roster_df = roster_df.loc[roster_df["category"] == "sports_car"]
+        roster_df.drop(columns=["cust_id", "owner", "helmet_face_type", "helmet_helmet_type", "helmet_color3",
+                                      "helmet_color2", "helmet_color1", "helmet_pattern", "mpr_num_tts", "seq",
+                                      "pro_promotable", "tt_rating", "mpr_num_races", "color", "roster_index", "group_id",
+                                      "category_id", "category", "category_name", "cpi", "license_level", "license_index", "licenses",
+                                      "admin"],
+                             inplace=True)
+        roster_df.rename(columns={"display_name": "Driver", "safety_rating": "Safety Rating",
+                                        "irating": "iRating", "group_name": "License Class"}, inplace=True)
+
+        roster_df = roster_df.sort_values(by='iRating', ascending=False)
+
+        return roster_df, team_name
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}.")
+        return None
 
 
 # Function to hold a list of special events
@@ -329,6 +350,6 @@ def irating_percentile(driver_name: str):
         return driver_percentile
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred: {e}.")
 
     return None

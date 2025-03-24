@@ -123,11 +123,14 @@ async def teamstats(interaction: discord.Interaction, team_id: str):
             await interaction.followup.send("Team ID Should be a Number")
             return
 
+        # Check if the function returned None (if the team ID is invalid)
+        team_stats_none = team_stats(team_id)
+        if team_stats_none is None:
+            await interaction.followup.send("Team Not Found or Incorrect ID.")
+            return
+
         # Call the team stats function with the user input to get the team stats and team name
         roster_df, team_name = team_stats(team_id)
-        if roster_df is None or roster_df.empty:
-            await interaction.followup.send("Team Not Found or Incorrect ID")
-            return
 
         # Create an embed
         embed = discord.Embed(
@@ -197,8 +200,10 @@ async def iratingpercentile(interaction: discord.Interaction, driver_name: str):
         # Call the race_results function with the user input
         drivers_df = irating_percentile(driver_name)
         if drivers_df is None or drivers_df.empty:
-            await interaction.followup.send("Driver Name Not Found or Incorrect")
+            await interaction.followup.send("Driver Name Not Found or Incorrect. Please Ensure the name is spelt exactly as per iRacing, with no spaces at the beginning.")
+
             return
+
         driver = drivers_df.iloc[0]['driver']
         percentile = drivers_df.iloc[0]['percentile']
         rank = drivers_df.iloc[0]['rank']
